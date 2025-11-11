@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Food Vending Site</title>
+    <style>
+        :root{--accent:#ff6b35;--bg:#fafafa;--card:#fff;--muted:#666}
+        *{box-sizing:border-box}
+        body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial; margin:0; background:var(--bg); color:#111}
+        header{background:linear-gradient(90deg,#fff 0, #fff0); padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:16px}
+        .brand{display:flex;align-items:center;gap:12px}
+        .logo{width:44px;height:44px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+        .container{max-width:1100px;margin:24px auto;padding:0 20px}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+        .card{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 2px 10px rgba(10,10,10,0.04);display:flex;flex-direction:column;gap:8px}
+        .thumb{height:140px;border-radius:8px;background-size:cover;background-position:center}
+        .title{font-weight:600}
+        .desc{color:var(--muted);font-size:13px}
+        .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+        button{background:var(--accent);border:0;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
+        .ghost{background:#eee;color:#111}
+        #cart{position:fixed;right:18px;bottom:18px;background:var(--card);padding:12px;border-radius:12px;box-shadow:0 8px 30px rgba(10,10,10,0.12);width:320px;max-height:70vh;overflow:auto}
+        #cart h3{margin:0 0 8px 0}
+        .cart-item{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px}
+        .qty{display:flex;gap:6px;align-items:center}
+        .muted{color:var(--muted);font-size:13px}
+        footer{padding:20px;text-align:center;color:var(--muted);font-size:13px}
+        @media(max-width:600px){#cart{width:92%;left:4%;right:4%}}
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <div class="logo">FV</div>
+            <div>
+                <div style="font-weight:700">Food Vending</div>
+                <div class="muted" style="font-size:13px">Fast. Fresh. Local.</div>
+            </div>
+        </div>
+        <div>
+            <input id="search" placeholder="Search food..." style="padding:8px;border-radius:8px;border:1px solid #eee" />
+        </div>
+    </header>
+
+    <main class="container">
+        <section>
+            <h2>Menu</h2>
+            <div id="menu" class="grid" aria-live="polite"></div>
+        </section>
+    </main>
+
+    <div id="cart" aria-live="polite">
+        <h3>Cart <span id="cart-count" class="muted" style="font-weight:600"></span></h3>
+        <div id="cart-items"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+            <div>
+                <div class="muted">Total</div>
+                <div style="font-weight:700" id="cart-total">$0.00</div>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button id="clear" class="ghost">Clear</button>
+                <button id="checkout">Checkout</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Built as a demo. No real orders processed.
+    </footer>
+
+    <script>
+        // Simple food vending demo app (vanilla JS)
+        const products = [
+            {id:1,name:"Classic Burger",desc:"Beef patty, lettuce, tomato, special sauce",price:6.50,img:"https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=800&auto=format&fit=crop&ixlib=rb-4.0.3&s=91d3b3a3fa02f4b20b58a4b6fc64bffa"},
+            {id:2,name:"Veggie Wrap",desc:"Grilled veggies, hummus, mixed greens",price:5.00,img:"https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop&ixlib=rb-4.0.3&s=2a9f6cd9f3b5f9f8f9f4b6b0d6a7a1c4"},
+            {id:3,name:"Chicken Salad",desc:"Grilled chicken, mixed greens, citrus vinaigrette",price:7.25,img:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?q=80&w=800&auto=format&fit=crop&ixlib=rb-4.0.3&s=8f8e0a1aa2a1d7f7b3c4f6a7c2c6b5f3"},
+            {id:4,name:"Fries",desc:"Crispy golden fries",price:2.50,img:"https://images.unsplash.com/photo-1586190848861-99aa4a171e90?q=80&w=800&auto=format&fit=crop&ixlib=rb-4.0.3&s=7b3b6d5f5a3e6b9df3c8d2a1ef9b6e4e"},
+            {id:5,name:"Iced Tea",desc:"Fresh brewed, lightly sweetened",price:1.95,img:"https://images.unsplash.com/photo-1510627498534-cf7e9002facc?q=80&w=800&auto=format&fit=crop&ixlib=rb-4.0.3&s=0e6f9d7c3d4a1e6b5f3a9b8c2d1e7f6a"},
+        ];
+
+        const menuEl = document.getElementById('menu');
+        const cartItemsEl = document.getElementById('cart-items');
+        const cartCountEl = document.getElementById('cart-count');
+        const cartTotalEl = document.getElementById('cart-total');
+        const searchEl = document.getElementById('search');
+
+        let cart = JSON.parse(localStorage.getItem('fv_cart') || '[]');
+
+        function saveCart(){ localStorage.setItem('fv_cart', JSON.stringify(cart)); renderCart(); }
+
+        function formatPrice(n){ return '$' + n.toFixed(2); }
+
+        function addToCart(id){
+            const p = products.find(x=>x.id===id);
+            if(!p) return;
+            const item = cart.find(c=>c.id===id);
+            if(item) item.qty++;
+            else cart.push({id:p.id,name:p.name,price:p.price,qty:1});
+            saveCart();
+        }
+
+        function removeFromCart(id){
+            cart = cart.filter(c=>c.id!==id);
+            saveCart();
+        }
+
+        function changeQty(id, delta){
+            const it = cart.find(c=>c.id===id);
+            if(!it) return;
+            it.qty += delta;
+            if(it.qty <= 0) removeFromCart(id);
+            else saveCart();
+        }
+
+        function renderMenu(list){
+            menuEl.innerHTML = '';
+            list.forEach(p=>{
+                const el = document.createElement('div'); el.className='card';
+                el.innerHTML = `
+                    <div class="thumb" style="background-image:url('${p.img}')"></div>
+                    <div class="title">${p.name}</div>
+                    <div class="desc">${p.desc}</div>
+                    <div class="row">
+                        <div style="font-weight:700">${formatPrice(p.price)}</div>
+                        <button data-id="${p.id}">Add</button>
+                    </div>
+                `;
+                menuEl.appendChild(el);
+            });
+        }
+
+        function renderCart(){
+            cartItemsEl.innerHTML = '';
+            if(cart.length === 0){
+                cartItemsEl.innerHTML = '<div class="muted">Cart is empty</div>';
+                cartCountEl.textContent = '';
+                cartTotalEl.textContent = formatPrice(0);
+                return;
+            }
+            let total = 0, count = 0;
+            cart.forEach(it=>{
+                total += it.price * it.qty;
+                count += it.qty;
+                const row = document.createElement('div'); row.className='cart-item';
+                row.innerHTML = `
+                    <div style="flex:1">
+                        <div style="font-weight:600">${it.name}</div>
+                        <div class="muted">${formatPrice(it.price)} × ${it.qty}</div>
+                    </div>
+                    <div class="qty">
+                        <button class="dec" data-id="${it.id}">−</button>
+                        <div style="min-width:20px;text-align:center">${it.qty}</div>
+                        <button class="inc" data-id="${it.id}">+</button>
+                    </div>
+                `;
+                cartItemsEl.appendChild(row);
+            });
+            cartCountEl.textContent = `(${count})`;
+            cartTotalEl.textContent = formatPrice(total);
+        }
+
+        // initial render
+        renderMenu(products);
+        renderCart();
+
+        // event delegation
+        menuEl.addEventListener('click', e=>{
+            const btn = e.target.closest('button[data-id]');
+            if(!btn) return;
+            addToCart(Number(btn.dataset.id));
+        });
+
+        cartItemsEl.addEventListener('click', e=>{
+            const inc = e.target.closest('button.inc');
+            const dec = e.target.closest('button.dec');
+            if(inc) changeQty(Number(inc.dataset.id), 1);
+            if(dec) changeQty(Number(dec.dataset.id), -1);
+        });
+
+        document.getElementById('clear').addEventListener('click', ()=>{
+            if(confirm('Clear cart?')){ cart = []; saveCart(); }
+        });
+
+        document.getElementById('checkout').addEventListener('click', ()=>{
+            if(cart.length===0){ alert('Cart is empty'); return; }
+            // simple demo checkout
+            const total = cart.reduce((s,i)=>s + i.price*i.qty, 0);
+            alert('Order placed. Total: ' + formatPrice(total) + '\n(This is a demo — no payment processed)');
+            cart = [];
+            saveCart();
+        });
+
+        searchEl.addEventListener('input', ()=>{
+            const q = searchEl.value.trim().toLowerCase();
+            if(!q) renderMenu(products);
+            else renderMenu(products.filter(p=>p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q)));
+        });
+
+        // keyboard shortcuts: "c" focuses cart (mobile) and "s" focuses search
+        window.addEventListener('keydown', (e)=>{
+            if(e.key === 's'){ searchEl.focus(); e.preventDefault(); }
+            if(e.key === 'c'){ document.getElementById('cart').scrollIntoView({behavior:'smooth'}); }
+        });
+    </script>
+</body>
+</html>
